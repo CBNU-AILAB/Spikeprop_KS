@@ -9,10 +9,18 @@ def min_natural_number(array):
     return min(array)
 
 
-def get_inner_connections(connections, index):
-    inner_connections = np.swapaxes(connections, 0, 1)[index]
-    y = inner_connections[:, :, 0]
-    w = inner_connections[:, :, 1]
+def get_incoming_connections(connections, index):
+    incoming_connections = np.swapaxes(connections, 0, 1)[index]
+    y = incoming_connections[:, :, 0].flatten()
+    w = incoming_connections[:, :, 1].flatten()
+
+    return y, w
+
+
+def get_outgoing_connections(connections, index):
+    outgoing_connections = connections[index]
+    y = outgoing_connections[:, :, 0].flatten()
+    w = outgoing_connections[:, :, 1].flatten()
 
     return y, w
 
@@ -90,6 +98,10 @@ def GRF_encoder(record, r_value, n_neurons, max_firing_time):
 
     return encoded_neurons
 
+
+#y = utils.get_y(utils.flatten(y), current_time, prev_layer.neurons, self.delay, self.tau,self.n_terminals)  # conversion y into 1-dimensional vector.
+
+
 #y, current_time, neuron, self.delay, self.tau, self.n_terminals
 def get_y(array, t, array_t_i, delay, tau, n_terminals):
     n_neurons = len(array) // n_terminals
@@ -97,10 +109,11 @@ def get_y(array, t, array_t_i, delay, tau, n_terminals):
     for i in range(n_neurons * n_terminals):
         t_i = array_t_i[i // n_terminals]
         d = delay * ((i % n_terminals) + 1)
-        if t <= t_i or t_i < 0 or t < t_i + d:
+
+        if t <= t_i or t_i < 0 or t <= t_i + d:
             pass
         else:
-            print('...')
+            # print('...')
             array[i] = y(tau, t, t_i, d)
 
     return array
@@ -121,7 +134,7 @@ def update_connections(src_connections, dst_y, dst_w, i_neuron):
 
     src_connections = np.reshape(updated, src_shape)
 
-    print("*** y and w were updated! ***")
+    # print("*** y and w were updated! ***")
 
 
 def mse_loss(t_a, t_d):
@@ -133,19 +146,64 @@ def diff_y_t(t, t_i, d, tau):
     return np.exp(1 - (t - t_i - d) / tau) / tau - (t - t_i - d) * np.exp(1 - (t - t_i - d) / tau) / tau**2
 
 
-def get_delta(i_neuron, connections, t_d, t_a, t_i, tau, d, n_terminals, is_output_layer, prev_delta=None):
+def get_delta(i_neuron, l_connections, tau, d, n_terminals, is_output_layer, t_i, t_d=None, t_a=None, t_h=None, t_j=None,  prev_delta=None):
     delta = None
     if is_output_layer == True:
         # delta for output layer
-        y, w = get_inner_connections(connections, i_neuron)
+        y, w = get_incoming_connections(l_connections[0], i_neuron)
 
-        for i in range(y):
+        for i in range(len(y)):
             delay = d * (i % n_terminals + 1)           # delays for each terminals
             y[i] = diff_y_t(t_a, t_i[i // n_terminals], delay, tau)       # round y
 
         delta = (t_d - t_a) / np.sum(w * y)
     else:
         # delta for generalized cases (hidden layer)
-        pass
+        next_connections = l_connections[0]     # i x j
+        curr_connections = l_connections[1]     # h x i
+
+        y_i, w_ij = get_outgoing_connections(next_connections, i_neuron)        # connections into neuron i from neuron h
+        y_h, w_hj = get_incoming_connections(curr_connections, i_neuron)        # connections from neuron i into neuron j
+
+        for i in range(len(y_i)):
+            delay = d * (i % n_terminals + 1)           # delays for each terminals
+            y_i[i] = diff_y_t(t_j[i // n_terminals], t_i, delay, tau)       # round y_i
+
+        for i in range(len(y_h)):
+            delay = d * (i % n_terminals + 1)           # delays for each terminals
+            y_h[i] = diff_y_t(t_i, t_h[i // n_terminals], delay, tau)       # round y_h
+
+        # make mask for prev_delta * w_ij * y_i.
+        prev_delta_mask = []
+        for i in range(n_terminals * len(t_j)):
+            prev_delta_mask.append(prev_delta[i % n_terminals])
+        prev_delta_mask = np.array(prev_delta_mask)
+
+        delta = np.sum(prev_delta_mask * w_ij * y_i) / np.sum(w_hj * y_h)
 
     return delta
+
+
+def init_layers(layer_list, value=-1):
+    for layer in layer_list:
+        layer.neurons = np.full(layer.neurons.shape, value)
+
+        if layer_list.index(layer) == 0:
+            # if first layer then there is not needed to init the connections.
+            pass
+        else:
+            # init y to 0.
+            connections = np.swapaxes(layer.connections, 0, 1)
+            connections[:, :, :, 0] = np.zeros(connections[:, :, :, 0].shape)
+            connections = np.swapaxes(layer.connections, 0, 1)
+
+            # y = np.zeros(y.shape)
+            #
+            # temp_shape = connections.shape
+            # shape = (temp_shape[1], temp_shape[2], 1)
+            #
+            # updated_y = np.reshape(y, temp_shape)
+            # updated_w = np.reshape(w, temp_shape)
+            # updated_y_w = np.concatenate((updated_y, updated_w), axis=2)
+            #
+            # layer.connections = updated_y_w

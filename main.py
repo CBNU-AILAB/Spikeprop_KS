@@ -27,13 +27,13 @@ encoded_Y_train = utils.Y_encoder(Y_train, 10, 30, 10)
 
 
 
-model = SP_Sequential(n_terminals=5, delay=1, tau=7, theta=2)
+model = SP_Sequential(n_terminals=5, delay=1, tau=7, theta=3)
 model.add(SP_Dense(population*28*28, weight_initializer='random'))
 model.add(SP_Dense(15, weight_initializer='random'))
 model.add(SP_Dense(10, weight_initializer='random'))
 
-model.compile(loss='mse', optimizer='my_optimizer', rl=0.01)
-model.fit(encoded_X_train, encoded_Y_train, epochs=20, batch_size=1)
+model.compile(loss='mse', optimizer='my_optimizer', lr=0.1)
+model.fit(encoded_X_train, encoded_Y_train[3], epochs=20, batch_size=1)
 
 #mse = model.evaluate(x, y, batch_size=1)
 #print('mse : ', mse)

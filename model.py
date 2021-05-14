@@ -68,11 +68,18 @@ class SP_Sequential:
 
     def fit(self, input_data, output_data, epochs, batch_size=1):
         itr = 0
-        while itr < epochs:
+        while itr < 20:
             # do feed forward
             self.forward(itr, input_data)
+            print(self.layer_list[2].neurons)
             # do backprop
             self.backward(itr, output_data)
+
+
+            utils.init_layers(self.layer_list)  # init every neurons to -1.
+
+            itr = itr + 1       # increase step
+
 
         return None
 
@@ -81,7 +88,7 @@ class SP_Sequential:
         print("--step#%d feed forward--" % itr)
         is_input_layer = True
         prev_layer = None
-        current_time = 0
+        current_time = 1
         TIME_OVER = 200
         INTERVAL = 1
         is_done = False
@@ -93,15 +100,16 @@ class SP_Sequential:
             else:
                 i_layer = 0
                 for layer in self.layer_list:
-                    if current_time == 0:
-                        # just feed input data
+                    if self.layer_list.index(layer) == 0:
+                        # first layer --> just feed input data
                         self.layer_list[0].neurons = input_data
                         prev_layer = self.layer_list[0]
                         is_input_layer = False
-                        current_time = utils.min_natural_number(prev_layer.neurons) + INTERVAL
+                        # current_time = utils.min_natural_number(prev_layer.neurons) + INTERVAL
                     else:
                         # do calculation for all neurons in this layer.
                         i_neuron = 0        # index of neuron
+
                         for neuron in layer.neurons:
                             if neuron > 0:
                                 # it's time over or current neuron is already fired.
@@ -109,7 +117,7 @@ class SP_Sequential:
                                 break
                             else:
                                 # t_mask = utils.mask(current_time, prev_layer.neurons, self.n_terminals, self.delay)
-                                y, w = utils.get_inner_connections(layer.connections, i_neuron)
+                                y, w = utils.get_incoming_connections(layer.connections, i_neuron)
                                 y = utils.get_y(utils.flatten(y), current_time, prev_layer.neurons, self.delay, self.tau, self.n_terminals)    # conversion y into 1-dimensional vector.
                                 w = utils.flatten(w)    # conversion w into 1-dimensional vector.
 
@@ -121,7 +129,7 @@ class SP_Sequential:
                                     self.layer_list[i_layer].neurons[i_neuron] = current_time
 
                                 # update y
-                                utils.update_connections(self.layer_list[i_layer].connections, y, w, i_layer)
+                                utils.update_connections(self.layer_list[i_layer].connections, y, w, i_neuron)
 
                                 i_neuron = i_neuron + 1         # increase the index of neuron.
 
@@ -135,15 +143,16 @@ class SP_Sequential:
 
         error = 0
 
-        t_a = self.layer_list[-1].neurons
-        t_d = output_data[itr]
-
-        if self.loss_function == 'mse':
-            error = utils.mse_loss(t_a, t_d)
+        # t_a = self.layer_list[-1].neurons
+        # t_d = output_data[itr]
+        #
+        # if self.loss_function == 'mse':
+        #     error = utils.mse_loss(t_a, t_d)
 
         prev_delta = []
+        temp_prev_delta = []
         for layer in reversed(self.layer_list):
-            i_current_layer = len(self.layer_list)    # index of current layer
+            i_current_layer = self.layer_list.index(layer)    # index of current layer
 
             if i_current_layer == 0:
                 # current layer is the first layer(input layer).
@@ -153,10 +162,10 @@ class SP_Sequential:
 
             i_neuron = 0
             for neuron in layer.neurons:
-                if self.layer_list.index(layer) == len(self.layer_list):
+                if i_current_layer == (len(self.layer_list) - 1):
                     # for output layer
                     delta = utils.get_delta(i_neuron=i_neuron,
-                                            connections=layer.connections,
+                                            l_connections=[layer.connections],
                                             t_d=output_data[i_neuron],
                                             t_a=neuron,
                                             t_i=prev_layer.neurons,
@@ -166,26 +175,39 @@ class SP_Sequential:
                                             is_output_layer=True,
                                             prev_delta=None)
 
-                    y, w = utils.get_inner_connections(layer.connections, i_neuron)
+                    y, w = utils.get_incoming_connections(layer.connections, i_neuron)
                     delta_w = -(self.lr * y * delta)
                     w = w + delta_w         # update weights
                     utils.update_connections(layer.connections, y, w, i_neuron)
-                    prev_delta.append(delta)
+                    temp_prev_delta.append(delta)
+                    i_neuron = i_neuron + 1
                 else:
                     # for hidden layer (generalied case)
+                    if i_current_layer == len(self.layer_list):
+                        # first layer --> end point of backwarding
+                        break
+
+                    next_layer = self.layer_list[i_current_layer + 1]       # layer J
                     delta = utils.get_delta(i_neuron=i_neuron,
-                                            connections=layer.connections,
-                                            t_d=output_data[i_neuron],
-                                            t_a=neuron,
-                                            t_i=prev_layer.neurons,
+                                            l_connections=[next_layer.connections, layer.connections],
+                                            t_j=self.layer_list[i_current_layer + 1].neurons,
+                                            t_i=neuron,
+                                            t_h=self.layer_list[i_current_layer - 1].neurons,
                                             tau=self.tau,
                                             d=self.delay,
                                             n_terminals=self.n_terminals,
-                                            is_output_layer=True,
+                                            is_output_layer=False,
                                             prev_delta=prev_delta)
 
+                    y, w = utils.get_incoming_connections(layer.connections, i_neuron)
+                    delta_w = self.lr * y * delta
+                    w = w + delta_w         # update weights
+                    utils.update_connections(layer.connections, y, w, i_neuron)
+                    temp_prev_delta.append(delta)
+                    i_neuron = i_neuron + 1
 
-                    pass
-
+            prev_delta.clear()
+            prev_delta = temp_prev_delta.copy()
+            temp_prev_delta.clear()
 
         return None
