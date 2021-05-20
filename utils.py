@@ -82,7 +82,7 @@ def GRF_encoder(record, r_value, n_neurons, max_firing_time):
     min = r_value[0]
     max = r_value[1]
     encoded_neurons = []
-    gamma = 1.5
+    gamma = 3
     threshold = max_firing_time
 
     for input_value in record:
@@ -110,7 +110,8 @@ def get_y(array, t, array_t_i, delay, tau, n_terminals):
         t_i = array_t_i[i // n_terminals]
         d = delay * ((i % n_terminals) + 1)
 
-        if t <= t_i or t_i < 0 or t <= t_i + d:
+        if t <= t_i or t_i <= 0 or t <= t_i + d:
+            array[i] = 0
             pass
         else:
             # print('...')
@@ -143,11 +144,16 @@ def mse_loss(t_a, t_d):
 
 def diff_y_t(t, t_i, d, tau):
     # partial derivative respect to t --> round y round t
+    if t - t_i - d <= 0:
+        return 0
     return np.exp(1 - (t - t_i - d) / tau) / tau - (t - t_i - d) * np.exp(1 - (t - t_i - d) / tau) / tau**2
 
 
 def get_delta(i_neuron, l_connections, tau, d, n_terminals, is_output_layer, t_i, t_d=None, t_a=None, t_h=None, t_j=None,  prev_delta=None):
     delta = None
+    # if t_a == -1:
+    #     t_a = 40
+
     if is_output_layer == True:
         # delta for output layer
         y, w = get_incoming_connections(l_connections[0], i_neuron)
@@ -156,7 +162,10 @@ def get_delta(i_neuron, l_connections, tau, d, n_terminals, is_output_layer, t_i
             delay = d * (i % n_terminals + 1)           # delays for each terminals
             y[i] = diff_y_t(t_a, t_i[i // n_terminals], delay, tau)       # round y
 
-        delta = (t_d - t_a) / np.sum(w * y)
+        if np.sum(w * y) == 0:
+            return 0
+        else:
+            delta = (t_d - t_a) / np.sum(w * y)
     else:
         # delta for generalized cases (hidden layer)
         next_connections = l_connections[0]     # i x j
@@ -176,17 +185,20 @@ def get_delta(i_neuron, l_connections, tau, d, n_terminals, is_output_layer, t_i
         # make mask for prev_delta * w_ij * y_i.
         prev_delta_mask = []
         for i in range(n_terminals * len(t_j)):
-            prev_delta_mask.append(prev_delta[i % n_terminals])
+            prev_delta_mask.append(prev_delta[i // n_terminals])
         prev_delta_mask = np.array(prev_delta_mask)
 
-        delta = np.sum(prev_delta_mask * w_ij * y_i) / np.sum(w_hj * y_h)
+        if np.sum(w_hj * y_h) == 0:
+            return 0
+        else:
+            delta = np.sum(prev_delta_mask * w_ij * y_i) / np.sum(w_hj * y_h)
 
     return delta
 
 
 def init_layers(layer_list, value=-1):
     for layer in layer_list:
-        layer.neurons = np.full(layer.neurons.shape, value)
+        layer.neurons = np.full(layer.neurons.shape, -1)
 
         if layer_list.index(layer) == 0:
             # if first layer then there is not needed to init the connections.
@@ -207,3 +219,12 @@ def init_layers(layer_list, value=-1):
             # updated_y_w = np.concatenate((updated_y, updated_w), axis=2)
             #
             # layer.connections = updated_y_w
+
+
+def convert_not_fired(neurons, value):
+    for i_neuron in range(len(neurons)):
+        if neurons[i_neuron] < 0:
+            # not fired
+            neurons[i_neuron] = value
+
+    return neurons

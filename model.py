@@ -68,9 +68,10 @@ class SP_Sequential:
 
     def fit(self, input_data, output_data, epochs, batch_size=1):
         itr = 0
-        while itr < 20:
+        while itr < 100:
             # do feed forward
             self.forward(itr, input_data)
+            print(self.layer_list[1].neurons)
             print(self.layer_list[2].neurons)
             # do backprop
             self.backward(itr, output_data)
@@ -154,6 +155,7 @@ class SP_Sequential:
         for layer in reversed(self.layer_list):
             i_current_layer = self.layer_list.index(layer)    # index of current layer
 
+
             if i_current_layer == 0:
                 # current layer is the first layer(input layer).
                 break
@@ -164,6 +166,7 @@ class SP_Sequential:
             for neuron in layer.neurons:
                 if i_current_layer == (len(self.layer_list) - 1):
                     # for output layer
+                    layer.neurons = utils.convert_not_fired(layer.neurons, 50)
                     delta = utils.get_delta(i_neuron=i_neuron,
                                             l_connections=[layer.connections],
                                             t_d=output_data[i_neuron],
@@ -175,8 +178,11 @@ class SP_Sequential:
                                             is_output_layer=True,
                                             prev_delta=None)
 
+                    # if neuron < 0:
+                    #     neuron = 40
                     y, w = utils.get_incoming_connections(layer.connections, i_neuron)
-                    delta_w = -(self.lr * y * delta)
+                    y = utils.get_y(y, neuron, prev_layer.neurons, self.delay, self.tau, self.n_terminals)
+                    delta_w = (self.lr * y * delta)
                     w = w + delta_w         # update weights
                     utils.update_connections(layer.connections, y, w, i_neuron)
                     temp_prev_delta.append(delta)
@@ -200,7 +206,8 @@ class SP_Sequential:
                                             prev_delta=prev_delta)
 
                     y, w = utils.get_incoming_connections(layer.connections, i_neuron)
-                    delta_w = self.lr * y * delta
+                    y = utils.get_y(y, neuron, prev_layer.neurons, self.delay, self.tau, self.n_terminals)
+                    delta_w = -(self.lr * y * delta)
                     w = w + delta_w         # update weights
                     utils.update_connections(layer.connections, y, w, i_neuron)
                     temp_prev_delta.append(delta)

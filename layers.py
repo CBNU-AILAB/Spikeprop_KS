@@ -13,7 +13,7 @@ class SP_Dense:
 
 
     def generate_neurons(self):
-        t_neurons = np.full((self.output_dim),-1, dtype=int)
+        t_neurons = np.full((self.output_dim), -1, dtype=int)
         self.neurons = t_neurons
 
 
