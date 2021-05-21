@@ -67,13 +67,8 @@ def norm_pdf(x, mu, sigma):
 
 
 def Y_encoder(src_Y, size, desired_firing_time, gap):
-    dst_Y = []
-
-    for y in src_Y:
-        temp = np.full(size, desired_firing_time + gap)
-        temp[y] = desired_firing_time
-
-        dst_Y.append(temp)
+    dst_Y = np.full(size, desired_firing_time + gap)
+    dst_Y[src_Y] = desired_firing_time
 
     return dst_Y
 
@@ -138,8 +133,14 @@ def update_connections(src_connections, dst_y, dst_w, i_neuron):
     # print("*** y and w were updated! ***")
 
 
-def mse_loss(t_a, t_d):
-    return 1 / 2 * (np.sum((t_a - t_d)**2))
+def mse_loss(list_t_a, list_t_d):
+    loss = 0
+
+    for t_a, t_d in zip(list_t_a, list_t_d):
+        loss = (t_a - t_d)**2
+    loss = loss / 2
+
+    return loss
 
 
 def diff_y_t(t, t_i, d, tau):
@@ -228,3 +229,4 @@ def convert_not_fired(neurons, value):
             neurons[i_neuron] = value
 
     return neurons
+

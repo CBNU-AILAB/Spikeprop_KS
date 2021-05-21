@@ -68,16 +68,22 @@ class SP_Sequential:
 
     def fit(self, input_data, output_data, epochs, batch_size=1):
         itr = 0
-        while itr < 100:
-            # do feed forward
-            self.forward(itr, input_data)
-            print(self.layer_list[1].neurons)
-            print(self.layer_list[2].neurons)
-            # do backprop
-            self.backward(itr, output_data)
+        while itr < 50:
+            for X, Y in zip(input_data, output_data):
+                # do feed forward
+                self.forward(itr, X)
+                print("I : ", self.layer_list[1].neurons)
+                print("J : ", self.layer_list[2].neurons)
+                print("D : ", Y)
+
+                loss = utils.mse_loss(self.layer_list[-1].neurons, Y)
+                print("loss : ", loss)
+
+                # do backprop
+                self.backward(itr, Y)
 
 
-            utils.init_layers(self.layer_list)  # init every neurons to -1.
+                utils.init_layers(self.layer_list)  # init every neurons to -1.
 
             itr = itr + 1       # increase step
 
